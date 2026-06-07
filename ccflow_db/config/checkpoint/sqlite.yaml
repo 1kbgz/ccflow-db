@@ -1,8 +1,0 @@
-# @package checkpoint
-
-store:
-  _target_: ccflow_db.SQLiteCheckpointStore
-  config:
-    _target_: ccflow_db.SQLiteConfig
-    path: ccflow-checkpoints.sqlite
-  table: checkpoints

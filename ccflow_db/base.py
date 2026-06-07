@@ -6,13 +6,11 @@ from pathlib import Path
 from typing import Any, Dict, List, Literal, Optional, Type, Union
 
 from ccflow import BaseModel, CallableModel, ContextBase, ContextType, Flow, ResultBase, ResultType
-from ccflow_etl import CheckpointRecord, CheckpointStatus
 from pydantic import Field
 
 __all__ = (
     "SQLiteConfig",
     "SQLiteCacheStore",
-    "SQLiteCheckpointStore",
     "SQLiteKeyExistsContext",
     "SQLiteKeyExistsModel",
     "SQLiteKeyExistsResult",
@@ -40,62 +38,6 @@ class SQLiteConfig(BaseModel):
         connection = sqlite3.connect(database_path)
         connection.row_factory = sqlite3.Row
         return connection
-
-
-class SQLiteCheckpointStore(BaseModel):
-    config: SQLiteConfig = Field(default_factory=SQLiteConfig)
-    table: str = "checkpoints"
-
-    def _ensure_table(self, connection: sqlite3.Connection) -> None:
-        connection.execute(
-            f"""
-            CREATE TABLE IF NOT EXISTS {_quote_identifier(self.table)} (
-                key TEXT PRIMARY KEY,
-                status TEXT NOT NULL,
-                updated_at TEXT NOT NULL,
-                metadata TEXT NOT NULL
-            )
-            """
-        )
-
-    def get(self, key: str) -> Optional[CheckpointRecord]:
-        with self.config.connect() as connection:
-            self._ensure_table(connection)
-            row = connection.execute(
-                f"SELECT key, status, updated_at, metadata FROM {_quote_identifier(self.table)} WHERE key = ?", (key,)
-            ).fetchone()
-        if row is None:
-            return None
-        return CheckpointRecord(key=row["key"], status=row["status"], updated_at=row["updated_at"], metadata=json.loads(row["metadata"]))
-
-    def mark(self, key: str, status: CheckpointStatus, metadata: Optional[Dict[str, Any]] = None) -> CheckpointRecord:
-        record = CheckpointRecord(
-            key=key,
-            status=status,
-            updated_at=datetime.now(timezone.utc).isoformat(),
-            metadata=metadata or {},
-        )
-        with self.config.connect() as connection:
-            self._ensure_table(connection)
-            connection.execute(
-                f"""
-                INSERT INTO {_quote_identifier(self.table)} (key, status, updated_at, metadata)
-                VALUES (?, ?, ?, ?)
-                ON CONFLICT(key) DO UPDATE SET
-                    status = excluded.status,
-                    updated_at = excluded.updated_at,
-                    metadata = excluded.metadata
-                """,
-                (record.key, record.status, record.updated_at, json.dumps(record.metadata, sort_keys=True)),
-            )
-        return record
-
-    def mark_succeeded(self, key: str, metadata: Optional[Dict[str, Any]] = None) -> CheckpointRecord:
-        return self.mark(key=key, status="succeeded", metadata=metadata)
-
-    def should_skip(self, key: str) -> bool:
-        record = self.get(key)
-        return record is not None and record.status == "succeeded"
 
 
 class SQLiteCacheStore(BaseModel):
