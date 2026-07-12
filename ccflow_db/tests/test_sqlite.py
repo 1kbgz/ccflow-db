@@ -1,7 +1,7 @@
+import tomllib
 from pathlib import Path
 
 import pytest
-import tomllib
 from ccflow_etl import CacheGetContext, CacheGetModel, CachePutContext, CachePutModel, ETLArtifact
 from hydra import compose, initialize_config_dir
 from hydra.utils import instantiate
