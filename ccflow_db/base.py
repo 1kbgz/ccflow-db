@@ -1,16 +1,16 @@
 import json
 import re
 import sqlite3
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
-from typing import Any, Dict, List, Literal, Optional, Type, Union
+from typing import Any, Literal
 
 from ccflow import BaseModel, CallableModel, ContextBase, ContextType, Flow, ResultBase, ResultType
 from pydantic import Field
 
 __all__ = (
-    "SQLiteConfig",
     "SQLiteCacheStore",
+    "SQLiteConfig",
     "SQLiteKeyExistsContext",
     "SQLiteKeyExistsModel",
     "SQLiteKeyExistsResult",
@@ -29,7 +29,7 @@ _IDENTIFIER_PATTERN = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*$")
 
 
 class SQLiteConfig(BaseModel):
-    path: Union[str, Path] = ":memory:"
+    path: str | Path = ":memory:"
 
     def connect(self):
         database_path = str(self.path)
@@ -65,7 +65,7 @@ class SQLiteCacheStore(BaseModel):
             row = connection.execute(f"SELECT 1 FROM {_quote_identifier(self.table)} WHERE key = ? LIMIT 1", (key,)).fetchone()
         return row is not None
 
-    def put_bytes(self, key: str, value: bytes, content_type: Optional[str] = None) -> Dict[str, Any]:
+    def put_bytes(self, key: str, value: bytes, content_type: str | None = None) -> dict[str, Any]:
         with self.config.connect() as connection:
             self._ensure_table(connection)
             connection.execute(
@@ -77,7 +77,7 @@ class SQLiteCacheStore(BaseModel):
                     content_type = excluded.content_type,
                     updated_at = excluded.updated_at
                 """,
-                (key, sqlite3.Binary(value), content_type, datetime.now(timezone.utc).isoformat()),
+                (key, sqlite3.Binary(value), content_type, datetime.now(UTC).isoformat()),
             )
         return {"table": self.table, "key": key}
 
@@ -92,23 +92,23 @@ class SQLiteCacheStore(BaseModel):
 
 class SQLiteQueryContext(ContextBase):
     sql: str
-    params: Union[List[Any], Dict[str, Any]] = Field(default_factory=list)
+    params: list[Any] | dict[str, Any] = Field(default_factory=list)
     fetch: bool = False
 
 
 class SQLiteQueryResult(ResultBase):
-    rows: List[Dict[str, Any]] = Field(default_factory=list)
+    rows: list[dict[str, Any]] = Field(default_factory=list)
     rowcount: int
 
 
 class SQLiteKeyExistsContext(ContextBase):
     table: str
-    key: Dict[str, Any] = Field(default_factory=dict)
+    key: dict[str, Any] = Field(default_factory=dict)
 
 
 class SQLiteKeyExistsResult(ResultBase):
     table: str
-    key: Dict[str, Any] = Field(default_factory=dict)
+    key: dict[str, Any] = Field(default_factory=dict)
     exists: bool
 
 
@@ -116,11 +116,11 @@ class SQLiteQueryModel(CallableModel):
     config: SQLiteConfig = Field(default_factory=SQLiteConfig)
 
     @property
-    def context_type(self) -> Type[ContextType]:
+    def context_type(self) -> type[ContextType]:
         return SQLiteQueryContext
 
     @property
-    def result_type(self) -> Type[ResultType]:
+    def result_type(self) -> type[ResultType]:
         return SQLiteQueryResult
 
     @Flow.call
@@ -133,16 +133,16 @@ class SQLiteQueryModel(CallableModel):
 
 class SQLiteTableWriteContext(ContextBase):
     table: str
-    rows: List[Dict[str, Any]] = Field(default_factory=list)
+    rows: list[dict[str, Any]] = Field(default_factory=list)
     mode: SQLiteTableWriteMode = "append"
-    primary_key: List[str] = Field(default_factory=list)
+    primary_key: list[str] = Field(default_factory=list)
 
 
 class SQLiteTableWriteResult(ResultBase):
     table: str
     status: SQLiteTableWriteStatus
     rows_written: int
-    columns: List[str] = Field(default_factory=list)
+    columns: list[str] = Field(default_factory=list)
 
 
 def _quote_identifier(identifier: str) -> str:
@@ -151,7 +151,7 @@ def _quote_identifier(identifier: str) -> str:
     return f'"{identifier}"'
 
 
-def _columns(rows: List[Dict[str, Any]]) -> List[str]:
+def _columns(rows: list[dict[str, Any]]) -> list[str]:
     columns = []
     for row in rows:
         for column in row:
@@ -160,7 +160,7 @@ def _columns(rows: List[Dict[str, Any]]) -> List[str]:
     return columns
 
 
-def _sqlite_type(values: List[Any]) -> str:
+def _sqlite_type(values: list[Any]) -> str:
     for value in values:
         if value is None:
             continue
@@ -176,7 +176,7 @@ def _sqlite_type(values: List[Any]) -> str:
     return "TEXT"
 
 
-def _column_types(rows: List[Dict[str, Any]], columns: List[str]) -> Dict[str, str]:
+def _column_types(rows: list[dict[str, Any]], columns: list[str]) -> dict[str, str]:
     return {column: _sqlite_type([row.get(column) for row in rows]) for column in columns}
 
 
@@ -193,7 +193,7 @@ def _table_exists(connection: sqlite3.Connection, table: str) -> bool:
     return row is not None
 
 
-def _create_table_sql(table: str, columns: List[str], column_types: Dict[str, str], primary_key: List[str]) -> str:
+def _create_table_sql(table: str, columns: list[str], column_types: dict[str, str], primary_key: list[str]) -> str:
     column_sql = [f"{_quote_identifier(column)} {column_types[column]}" for column in columns]
     if primary_key:
         missing_keys = [column for column in primary_key if column not in columns]
@@ -203,7 +203,7 @@ def _create_table_sql(table: str, columns: List[str], column_types: Dict[str, st
     return f"CREATE TABLE IF NOT EXISTS {_quote_identifier(table)} ({', '.join(column_sql)})"
 
 
-def _insert_sql(table: str, columns: List[str], mode: SQLiteTableWriteMode, primary_key: List[str]) -> str:
+def _insert_sql(table: str, columns: list[str], mode: SQLiteTableWriteMode, primary_key: list[str]) -> str:
     quoted_columns = [_quote_identifier(column) for column in columns]
     placeholders = ", ".join("?" for _column in columns)
     sql = f"INSERT INTO {_quote_identifier(table)} ({', '.join(quoted_columns)}) VALUES ({placeholders})"
@@ -223,11 +223,11 @@ class SQLiteTableWriteModel(CallableModel):
     config: SQLiteConfig = Field(default_factory=SQLiteConfig)
 
     @property
-    def context_type(self) -> Type[ContextType]:
+    def context_type(self) -> type[ContextType]:
         return SQLiteTableWriteContext
 
     @property
-    def result_type(self) -> Type[ResultType]:
+    def result_type(self) -> type[ResultType]:
         return SQLiteTableWriteResult
 
     @Flow.call
@@ -253,11 +253,11 @@ class SQLiteKeyExistsModel(CallableModel):
     config: SQLiteConfig = Field(default_factory=SQLiteConfig)
 
     @property
-    def context_type(self) -> Type[ContextType]:
+    def context_type(self) -> type[ContextType]:
         return SQLiteKeyExistsContext
 
     @property
-    def result_type(self) -> Type[ResultType]:
+    def result_type(self) -> type[ResultType]:
         return SQLiteKeyExistsResult
 
     @Flow.call

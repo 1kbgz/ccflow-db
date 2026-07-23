@@ -1,3 +1,4 @@
+import sqlite3
 import tomllib
 from pathlib import Path
 
@@ -135,7 +136,7 @@ def test_sqlite_table_write_rolls_back_transaction_on_insert_failure(tmp_path):
         )
     )
 
-    with pytest.raises(Exception):
+    with pytest.raises(sqlite3.IntegrityError):
         writer(
             SQLiteTableWriteContext(
                 table="daily_bars",

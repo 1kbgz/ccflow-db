@@ -1,4 +1,4 @@
-from ccflow_db import *  # noqa
+from ccflow_db import *
 
 
 def test_all():
