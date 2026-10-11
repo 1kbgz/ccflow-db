@@ -5,7 +5,7 @@ from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any, Literal
 
-from ccflow import BaseModel, CallableModel, ContextBase, ContextType, Flow, ResultBase, ResultType
+from ccflow import BaseModel, CallableModel, ContextBase, Flow, ResultBase
 from pydantic import Field
 
 __all__ = (
@@ -116,11 +116,11 @@ class SQLiteQueryModel(CallableModel):
     config: SQLiteConfig = Field(default_factory=SQLiteConfig)
 
     @property
-    def context_type(self) -> type[ContextType]:
+    def context_type(self) -> type[SQLiteQueryContext]:
         return SQLiteQueryContext
 
     @property
-    def result_type(self) -> type[ResultType]:
+    def result_type(self) -> type[SQLiteQueryResult]:
         return SQLiteQueryResult
 
     @Flow.call
@@ -223,11 +223,11 @@ class SQLiteTableWriteModel(CallableModel):
     config: SQLiteConfig = Field(default_factory=SQLiteConfig)
 
     @property
-    def context_type(self) -> type[ContextType]:
+    def context_type(self) -> type[SQLiteTableWriteContext]:
         return SQLiteTableWriteContext
 
     @property
-    def result_type(self) -> type[ResultType]:
+    def result_type(self) -> type[SQLiteTableWriteResult]:
         return SQLiteTableWriteResult
 
     @Flow.call
@@ -253,11 +253,11 @@ class SQLiteKeyExistsModel(CallableModel):
     config: SQLiteConfig = Field(default_factory=SQLiteConfig)
 
     @property
-    def context_type(self) -> type[ContextType]:
+    def context_type(self) -> type[SQLiteKeyExistsContext]:
         return SQLiteKeyExistsContext
 
     @property
-    def result_type(self) -> type[ResultType]:
+    def result_type(self) -> type[SQLiteKeyExistsResult]:
         return SQLiteKeyExistsResult
 
     @Flow.call
